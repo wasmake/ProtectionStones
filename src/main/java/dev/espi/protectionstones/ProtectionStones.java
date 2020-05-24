@@ -24,10 +24,17 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.util.profile.Profile;
 import dev.espi.protectionstones.commands.ArgHelp;
 import dev.espi.protectionstones.commands.PSCommandArg;
+import dev.espi.protectionstones.data.ProtectionDataHandler;
+import dev.espi.protectionstones.database.MongoDB;
+import dev.espi.protectionstones.database.MongoInstance;
+import dev.espi.protectionstones.database.daos.ProtectionPlayer;
+import dev.espi.protectionstones.database.daos.Protections;
 import dev.espi.protectionstones.placeholders.PSPlaceholderExpansion;
 import dev.espi.protectionstones.utils.BlockUtil;
 import dev.espi.protectionstones.utils.UUIDCache;
 import dev.espi.protectionstones.utils.WGUtils;
+import dev.espi.protectionstones.utils.config.PSWConfig;
+import lombok.Getter;
 import net.milkbowl.vault.economy.Economy;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.*;
@@ -64,6 +71,15 @@ public class ProtectionStones extends JavaPlugin {
 
     private static List<PSCommandArg> commandArgs = new ArrayList<>();
     private static ProtectionStones plugin;
+
+    @Getter
+    private static MongoDB mongoDB;
+
+    @Getter
+    private static PSWConfig psConfig;
+
+    @Getter
+    private static ProtectionDataHandler protectionDataHandler;
 
     private PSEconomy economy;
 
@@ -440,6 +456,10 @@ public class ProtectionStones extends JavaPlugin {
         FlagHandler.registerFlags();
     }
 
+    public void onDisable(){
+        protectionDataHandler.lease();
+    }
+
     @Override
     public void onEnable() {
         FlagHandler.registerHandlers(); // register custom WG flag handlers
@@ -450,6 +470,7 @@ public class ProtectionStones extends JavaPlugin {
         plugin = this;
         configLocation = new File(this.getDataFolder() + "/config.toml");
         blockDataFolder = new File(this.getDataFolder() + "/blocks");
+        psConfig = new PSWConfig();
 
         // metrics (bStats)
         new Metrics(this);
@@ -547,7 +568,20 @@ public class ProtectionStones extends JavaPlugin {
         if (configOptions.uuidupdated == null || !configOptions.uuidupdated)
             LegacyUpgrade.convertToUUID();
 
+        protectionDataHandler = new ProtectionDataHandler();
+
         getLogger().info(ChatColor.WHITE + "ProtectionStones has successfully started!");
+
+        mongoDB = new MongoInstance();
+        mongoDB.connect(psConfig.getConfig().getString("db.host"),
+                psConfig.getConfig().getInt("db.port"),
+                psConfig.getConfig().getString("db.user"),
+                psConfig.getConfig().getString("db.database"),
+                psConfig.getConfig().getString("db.password"),
+                psConfig.getConfig().getString("db.authdb"));
+
+        mongoDB.registerClass(Protections.class);
+        mongoDB.registerClass(ProtectionPlayer.class);
     }
 
 }

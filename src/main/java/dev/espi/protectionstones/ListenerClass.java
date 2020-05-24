@@ -20,6 +20,7 @@ import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import dev.espi.protectionstones.database.daos.ProtectionPlayer;
 import dev.espi.protectionstones.event.PSCreateEvent;
 import dev.espi.protectionstones.event.PSRemoveEvent;
 import dev.espi.protectionstones.utils.UUIDCache;
@@ -47,11 +48,15 @@ import java.util.List;
 
 public class ListenerClass implements Listener {
 
+    private ProtectionStones pS = ProtectionStones.getInstance();
+
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent e) {
         UUIDCache.removeUUID(e.getPlayer().getUniqueId());
         UUIDCache.removeName(e.getPlayer().getName());
         UUIDCache.storeUUIDNamePair(e.getPlayer().getUniqueId(), e.getPlayer().getName());
+
+        ProtectionPlayer protectionPlayer = pS.getProtectionDataHandler().getPlayer(e.getPlayer());
 
         // allow worldguard to resolve all UUIDs to names
         Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> UUIDCache.storeWGProfile(e.getPlayer().getUniqueId(), e.getPlayer().getName()));
@@ -332,8 +337,10 @@ public class ListenerClass implements Listener {
     public void onPSCreate(PSCreateEvent event) {
         if (event.isCancelled()) return;
         if (!event.getRegion().getTypeOptions().eventsEnabled) return;
-
+        ProtectionPlayer psp = pS.getProtectionDataHandler().getPlayer(event.getPlayer());
+        if(!psp.capableOfCreation(Bukkit.getServerName())) event.setCancelled(true);
         // run custom commands (in config)
+        psp.addProtection(Bukkit.getServerName(), event.getRegion().getName());
         for (String action : event.getRegion().getTypeOptions().regionCreateCommands) {
             execEvent(action, event.getPlayer(), event.getPlayer().getName(), event.getRegion());
         }
@@ -344,7 +351,8 @@ public class ListenerClass implements Listener {
         if (event.isCancelled()) return;
         if (event.getRegion().getTypeOptions() == null) return;
         if (!event.getRegion().getTypeOptions().eventsEnabled) return;
-
+        ProtectionPlayer psp = pS.getProtectionDataHandler().getPlayer(event.getPlayer());
+        psp.removeProtection(Bukkit.getServerName(), event.getRegion().getName());
         // run custom commands (in config)
         for (String action : event.getRegion().getTypeOptions().regionDestroyCommands) {
             if (event.getPlayer() == null) {
